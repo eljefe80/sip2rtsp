@@ -21,6 +21,10 @@ ARG DEBIAN_FRONTEND
 
 # bind /var/cache/apt to tmpfs to speed up baresip build
 RUN --mount=type=tmpfs,target=/tmp --mount=type=tmpfs,target=/var/cache/apt \
+    --mount=type=bind,source=docker/prep_build_baresip.sh,target=/deps/prep_build_baresip.sh \
+    /deps/prep_build_baresip.sh
+RUN --mount=type=tmpfs,target=/tmp --mount=type=tmpfs,target=/var/cache/apt \
+    --mount=type=bind,source=my-baresip/,target=/deps/baresip/ \
     --mount=type=bind,source=docker/build_baresip.sh,target=/deps/build_baresip.sh \
     /deps/build_baresip.sh
 

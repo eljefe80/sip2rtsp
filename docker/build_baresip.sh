@@ -25,10 +25,10 @@ rm v${LIBRE_VERSION}.tar.gz
 
 # Create a temporary directory for building baresip, download the source code, extract it, and remove the archive
 mkdir /tmp/baresip
-wget https://github.com/baresip/baresip/archive/refs/tags/v${BARESIP_VERSION}.tar.gz
-tar -zxf v${BARESIP_VERSION}.tar.gz -C /tmp/baresip --strip-components=1
-rm v${BARESIP_VERSION}.tar.gz
-
+#wget https://github.com/baresip/baresip/archive/refs/tags/v${BARESIP_VERSION}.tar.gz
+#tar -zxf v${BARESIP_VERSION}.tar.gz -C /tmp/baresip --strip-components=1
+#rm v${BARESIP_VERSION}.tar.gz
+cp -rf /deps/baresip/* /tmp/baresip/
 mkdir -p /usr/local/baresip
 
 # Build and install libre (with librem)
