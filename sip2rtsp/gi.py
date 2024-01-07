@@ -20,6 +20,8 @@ except ImportError:
     raise
 else:
     Gst.init([])
+    Gst.debug_set_active(True)
+    Gst.debug_set_default_threshold(3)
     gi.require_version("GstApp", "1.0")
     gi.require_version("GstPbutils", "1.0")
     gi.require_version('GstRtsp', '1.0')

@@ -187,7 +187,7 @@ class MediaService(ServiceBase):
                         <tt:DefaultPTZTimeout>PT1093754.348S</tt:DefaultPTZTimeout>
                     </tt:PTZConfiguration>
                 </trt:Profiles>
-            </trt:GetProfilesResponse>        
+            </trt:GetProfilesResponse>
         '''
 
     def getProfile(self, data):

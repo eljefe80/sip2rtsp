@@ -51,5 +51,6 @@ class OnvifServer:
             handlers,
             default_handler_class=default_handler_class,
             default_handler_args=default_handler_args,
+            debug=True
         )
         app.listen(port = self.config.onvif.listen_server_port, address = self.config.onvif.listen_server_address)

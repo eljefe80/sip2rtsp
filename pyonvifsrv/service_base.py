@@ -40,12 +40,12 @@ class ServiceBase:
 
         async def post(self):
             reqBody = self.request.body.decode("utf-8")
-            # logger.debug(f"HTTP request body: {reqBody}")
+#            logger.debug(f"HTTP request body: {reqBody}")
 
             # Parse the SOAP XML and create a dictionary which contains the
             # SOAP header and body
             reqData = parseSOAPString(reqBody)
-            # logging.debug(f"data: \n{json.dumps(reqData, indent=4)}")
+#            logging.debug(f"data: \n{json.dumps(reqData, indent=4)}")
 
             [responseCode, response] = await self.callMethodFromSoapRequestData(reqData)
             self.set_status(responseCode)
@@ -83,7 +83,7 @@ class ServiceBase:
                 content = (
                     envelopeHeader(reqData["header"]) + responseBody + envelopeFooter()
                 )
-                # logger.debug(f"HTTP response body: {content}")
+                logger.debug(f"HTTP response body: {content}")
                 httpStatusCode = 500 if "<SOAP-ENV:Fault>" in responseBody else 200
                 return (httpStatusCode, content)
             else:

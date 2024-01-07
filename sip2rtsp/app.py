@@ -7,8 +7,8 @@ from sip2rtsp.version import VERSION
 from sip2rtsp.gi import GstRtspServer, GstRtsp
 from sip2rtsp.baresip_ctrl import BaresipControl
 from sip2rtsp.const import (
-    BARESIP_CTRL_HOST,
-    BARESIP_CTRL_PORT,
+#    BARESIP_CTRL_HOST,
+#    BARESIP_CTRL_PORT,
     BARESIP_CTRL_REQUEST_TIMEOUT,
     EVENT_TYPE,
 )
@@ -17,13 +17,14 @@ logger = logging.getLogger(__name__)
 
 
 class Sip2RtspApp:
-    def __init__(self, aioloop, loop, config) -> None:
+    def __init__(self, aioloop, loop, config, environment_vars) -> None:
         self.ringCallback = None
         self.pendingIncomingCall = False
 
         self.aioloop = aioloop
         self.loop = loop
         self.config = config
+        self.environment_vars = environment_vars
 
         self.server = GstRtspServer.RTSPOnvifServer.new()
         self.factory = GstRtspServer.RTSPOnvifMediaFactory.new()
@@ -52,16 +53,19 @@ class Sip2RtspApp:
         self.server.attach(self.loop.get_context())
 
         self.bs_ctrl = BaresipControl(
-            BARESIP_CTRL_HOST, BARESIP_CTRL_PORT, BARESIP_CTRL_REQUEST_TIMEOUT
+            config.sip.ctrl_host,
+            config.sip.ctrl_port,
+            BARESIP_CTRL_REQUEST_TIMEOUT
         )
         self.bs_ctrl.set_callback(self.event_handler)
+
 
     def set_RingingCallback(self, callback):
         """Set the callback function to be called when an incoming call event is signalled"""
         self.ringCallback = callback
 
     def set_environment_vars(self) -> None:
-        for key, value in self.config.environment_vars.items():
+        for key, value in self.environment_vars.items():
             os.environ[key] = value
 
     async def start(self) -> None:
@@ -74,15 +78,26 @@ class Sip2RtspApp:
             os.kill(os.getpid(), signal.SIGTERM)
 
         await self.bs_ctrl.start()
+        async def dial():
+            if self.pendingIncomingCall:
+                logger.info("ONVIF backchannel requested. Answering incoming call...")
+                await self.bs_ctrl.accept()
+                logger.info("Answering done...")
+            else:
+                logger.info("ONVIF backchannel requested. Dialing...")
+                await self.bs_ctrl.dial(self.config.sip.remote_uri)
+                logger.info("Dialing done...")
+
+        asyncio.run_coroutine_threadsafe(dial(), self.aioloop)
 
     async def stop(self) -> None:
         # Try to hang up any active calls gracefully
         callstat = await self.bs_ctrl.callstat()
         if callstat:
             if "(no active calls)" not in callstat:
-                logger.info(f"Hanging up...")
+                logger.info(f"stop: Hanging up...")
                 await self.bs_ctrl.hangup()
-                logger.info(f"Hanging up done...")
+                logger.info(f"stop: Hanging up done...")
         else:
             # If callstat() fails, we assume there is an active call
             # This might fail too...
@@ -125,15 +140,18 @@ class Sip2RtspApp:
                 remoteip=client.get_connection().get_ip(), control=control, caps=caps
             )
         )
-        reqmsg: GstRtsp.RTSPMessage = context.request
-        # reqmsg.dump()
-        res, value = reqmsg.get_header(GstRtsp.RTSPHeaderField.REQUIRE, 0)
-        if res == GstRtsp.RTSPResult.OK:
-            logger.debug("SETUP request header: Require: {value}".format(value=value))
-            if value == "www.onvif.org/ver20/backchannel":
-
-                async def dial():
-                    if  self.pendingIncomingCall:
+        uri: GstRtsp.RTSPUrl = context.uri
+#        uri.dump()
+#        print(dir(uri))
+        # res, value = reqmsg.get_header(GstRtsp.RTSPHeaderField.URI, 0)
+#        logger.info(f"Received SETUP request res: {res}, value: {value}")
+        #if res == GstRtsp.RTSPResult.OK:
+#            logger.debug("SETUP request header: Require: {value}".format(value=value))
+        async def dial():
+            callstat = await self.bs_ctrl.callstat()
+            if callstat:
+                if "(no active calls)" in callstat:
+                    if self.pendingIncomingCall:
                         logger.info("ONVIF backchannel requested. Answering incoming call...")
                         await self.bs_ctrl.accept()
                         logger.info("Answering done...")
@@ -142,7 +160,11 @@ class Sip2RtspApp:
                         await self.bs_ctrl.dial(self.config.sip.remote_uri)
                         logger.info("Dialing done...")
 
-                asyncio.run_coroutine_threadsafe(dial(), self.aioloop)
+        asyncio.run_coroutine_threadsafe(dial(), self.aioloop)
+
+
+        if "stream=2" in uri.abspath:
+            logger.debug("TODO: add muting")
 
     def client_describe_request(self, client, context: GstRtspServer.RTSPContext):
         logger.debug(
@@ -164,12 +186,8 @@ class Sip2RtspApp:
                 remoteip=client.get_connection().get_ip()
             )
         )
-        reqmsg: GstRtsp.RTSPMessage = context.request
-        # reqmsg.dump()
-        res, value = reqmsg.get_header(GstRtsp.RTSPHeaderField.REQUIRE, 0)
-        if res == GstRtsp.RTSPResult.OK:
-            logger.debug("TEARDOWN request header: Require: {value}".format(value=value))
-            if value == "www.onvif.org/ver20/backchannel":
+        uri: GstRtsp.RTSPUrl = context.uri
+        if "stream=2" in uri.abspath:
                 async def hangup():
                     logger.info("ONVIF backchannel TEARDOWN request. Hanging up...")
                     await self.bs_ctrl.hangup()
@@ -191,9 +209,9 @@ class Sip2RtspApp:
             callstat = await self.bs_ctrl.callstat()
             if callstat:
                 if "(no active calls)" not in callstat:
-                    logger.info(f"Hanging up...")
+                    logger.info(f"client_closed: Hanging up...")
                     await self.bs_ctrl.hangup()
-                    logger.info(f"Hanging up done...")
+                    logger.info(f"client_closed: Hanging up done...")
             else:
                 # If callstat() fails, we assume there is an active call
                 # This might fail too...
@@ -221,5 +239,5 @@ class Sip2RtspApp:
         client.connect("setup-request", self.client_setup_request)
         client.connect("describe-request", self.client_describe_request)
         client.connect("teardown-request", self.client_teardown_request)
-        client.connect("closed", self.client_closed)
+        # client.connect("closed", self.client_closed)
         # client.connect("send_message", self.client_send_message)

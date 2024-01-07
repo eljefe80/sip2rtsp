@@ -11,14 +11,19 @@ import logging
 import os
 import sys
 import traceback
+import json
 
 sys.path.append("../pyonvifsrv")
 
 from sip2rtsp.version import VERSION
 from sip2rtsp.app import Sip2RtspApp
 from sip2rtsp.config import Sip2RtspConfig
+from sip2rtsp.config import BaresipConfig
 
 from pyonvifsrv.server import OnvifServer
+
+from sip2rtsp.s6gen import S6Generator
+from sip2rtsp.pactl import create_pa_devices
 
 threading.current_thread().name = "sip2rtsp"
 
@@ -125,46 +130,61 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.set_debug(False)
 
-    glib_loop = GLib.MainLoop()
-    glib_thread = threading.Thread(target=glib_loop.run)
-    glib_thread.start()
+    main_task = {}
+    onvif_task = {}
+    glib_loop_h = {}
+    glib_thread_h = {}
+    for (name, named_config) in config.connections.items():
+      glib_loop_h[name] = glib_loop = GLib.MainLoop()
+      glib_thread_h[name] = glib_thread = threading.Thread(target=glib_loop.run)
+      glib_thread.start()
 
-    sip2rtsp_app = Sip2RtspApp(loop, glib_loop, config)
-    onvifServer = OnvifServer(loop, config)
-    onvifServer.getContext().setFirmwareVersion(VERSION)
+      print(named_config)
+      baresip_config = BaresipConfig(name, named_config)
+      baresip_config.write_config(f"/etc/baresip/config-{name}/config")
 
-    def onRinging(_peerUri: str):
-        onvifServer.getContext().triggerDoorbellEvent()
+      create_pa_devices(named_config.sip.audio_device, named_config.sip.audio_source)
+      s6 = S6Generator(name, "baresip", f"/etc/baresip/config-{name}/config")
+      s6.generate_files()
+      s6.start_supervisor()
 
-    sip2rtsp_app.set_RingingCallback(onRinging)
+      sip2rtsp_app = Sip2RtspApp(loop, glib_loop, named_config, config.environment_vars)
+      onvifServer = OnvifServer(loop, named_config)
+      onvifServer.getContext().setFirmwareVersion(VERSION)
 
-    async def graceful_shutdown(s, loop, glib_loop, glib_thread):
-        await sip2rtsp_app.stop()
-        await shutdown(s, loop, glib_loop, glib_thread)
+      def onRinging(_peerUri: str):
+          onvifServer.getContext().triggerDoorbellEvent()
 
-    signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
-    for s in signals:
-        loop.add_signal_handler(
-            s,
-            lambda s=s: asyncio.create_task(
-                graceful_shutdown(s, loop, glib_loop, glib_thread)
-            ),
-        )
+      sip2rtsp_app.set_RingingCallback(onRinging)
 
-    main_task = loop.create_task(sip2rtsp_app.start())
-    onvif_task = loop.create_task(onvifServer.start_server())
+      async def graceful_shutdown(s, loop, glib_loop, glib_thread):
+          await sip2rtsp_app.stop()
+          await shutdown(s, loop, glib_loop, glib_thread)
 
-    try:
-        asyncio.set_event_loop(loop)
-        logger.debug(f"Entering loop.run_forever()...")
-        loop.run_forever()
-        logger.debug(f"Left loop.run_forever()...")
-    except KeyboardInterrupt:  # pragma: no branch
-        logger.debug(f"Received KeyboardInterrupt")
-    finally:
-        loop.run_until_complete(main_task)
-        loop.run_until_complete(onvif_task)
-        loop.close()
-        asyncio.set_event_loop(None)
+      signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
+      for s in signals:
+          loop.add_signal_handler(
+              s,
+              lambda s=s: asyncio.create_task(
+                  graceful_shutdown(s, loop, glib_loop, glib_thread)
+              ),
+          )
+
+      main_task[name] = loop.create_task(sip2rtsp_app.start())
+      onvif_task[name] = loop.create_task(onvifServer.start_server())
+
+    for (name, named_config) in config.connections.items():
+      try:
+          asyncio.set_event_loop(loop)
+          logger.debug(f"Entering loop.run_forever()...")
+          loop.run_forever()
+          logger.debug(f"Left loop.run_forever()...")
+      except KeyboardInterrupt:  # pragma: no branch
+          logger.debug(f"Received KeyboardInterrupt")
+      finally:
+          loop.run_until_complete(main_task[name])
+          loop.run_until_complete(onvif_task[name])
+          loop.close()
+          asyncio.set_event_loop(None)
 
     logger.debug(f"main() exit...")

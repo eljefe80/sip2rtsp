@@ -160,7 +160,12 @@ def envelopeHeader(requestHeader: dict) -> str:
                 header += "<wsa5:To SOAP-ENV:mustUnderstand=\"1\">" + requestHeader["To"] + "</wsa5:To>"
 
         if "Action" in requestHeader:
-            header += "<wsa5:Action SOAP-ENV:mustUnderstand=\"1\">" + requestHeader["Action"]["#text"].replace("Request", "Response") + "</wsa5:Action>"
+
+            if "#text" in requestHeader["Action"]:
+                header += "<wsa5:Action SOAP-ENV:mustUnderstand=\"1\">" + requestHeader["Action"]["#text"].replace("Request", "Response") + "</wsa5:Action>"
+            else:
+                header += "<wsa5:Action SOAP-ENV:mustUnderstand=\"1\">" + requestHeader["Action"].replace("Request", "Response") + "</wsa5:Action>"
+
         
         if "Security" in requestHeader:  
             username = requestHeader["Security"]["UsernameToken"]["Username"]

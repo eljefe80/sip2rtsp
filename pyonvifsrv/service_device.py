@@ -36,7 +36,7 @@ class DeviceService(ServiceBase):
                         </tt:Date>
                     </tt:UTCDateTime>
                 </tds:SystemDateAndTime>
-            </tds:GetSystemDateAndTimeResponse>		
+            </tds:GetSystemDateAndTimeResponse>
         '''.format(hour=currentTime.hour, minute=currentTime.minute, second=currentTime.second, year=currentTime.year, month=currentTime.month, day=currentTime.day)
 
     def getScopes(self, data):
@@ -85,14 +85,14 @@ class DeviceService(ServiceBase):
                 <tds:FirmwareVersion>{firmwareVersion}</tds:FirmwareVersion>
                 <tds:SerialNumber>00000000</tds:SerialNumber>
                 <tds:HardwareId>SIP2RTSP</tds:HardwareId>
-            </tds:GetDeviceInformationResponse>		
+            </tds:GetDeviceInformationResponse>
         '''.format(firmwareVersion = self.context.firmwareVersion)
 
     def getCapabilities(self, data):
-        return '''
+        ret = '''
             <tds:GetCapabilitiesResponse>
                 <tds:Capabilities>
-                    <tt:Device>
+                     <tt:Device>
                         <tt:XAddr>{deviceServiceAddress}</tt:XAddr>
                         <tt:Network>
                             <tt:IPFilter>false</tt:IPFilter>
@@ -165,6 +165,8 @@ class DeviceService(ServiceBase):
                    mediaServiceAddress=self.context.serviceAddresses["media"],
                    ptzServiceAddress=self.context.serviceAddresses["ptz"],
                    deviceIoServiceAddress=self.context.serviceAddresses["deviceio"])
+        logger.info(ret)
+        return ret
 
     def getServices(self, data):
         return '''
@@ -217,7 +219,7 @@ class DeviceService(ServiceBase):
                         <tt:Minor>30</tt:Minor>
                     </tds:Version>
                 </tds:Service>
-            </tds:GetServicesResponse>		
+            </tds:GetServicesResponse>
         '''.format(deviceServiceAddress=self.context.serviceAddresses["device"],
                    eventsServiceAddress=self.context.serviceAddresses["events"],
                    imagingServiceAddress=self.context.serviceAddresses["imaging"],

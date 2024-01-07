@@ -131,8 +131,12 @@ class EventsService(ServiceBase):
 
         subscriptionId = str(random.randint(0, 2**32 - 1))
 
-        initialTerminationTime: str = data["body"]["CreatePullPointSubscription"]["InitialTerminationTime"]
-        expireInSeconds = getDurationAsSeconds(initialTerminationTime)
+        logger.debug(f"CreatePullPointSubscription: {data}")
+        if data["body"]["CreatePullPointSubscription"]:
+            initialTerminationTime: str = data["body"]["CreatePullPointSubscription"]["InitialTerminationTime"]
+            expireInSeconds = getDurationAsSeconds(initialTerminationTime)
+        else:
+            expireInSeconds = 3600
         logger.debug("New PullPointSubscription {subscriptionId} expires in {expireInSeconds} seconds".format(subscriptionId=subscriptionId, expireInSeconds=expireInSeconds))
 
         currentTime: datetime = datetime.datetime.now(datetime.timezone.utc)
